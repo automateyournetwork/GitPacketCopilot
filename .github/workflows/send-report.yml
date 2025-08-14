@@ -1,0 +1,26 @@
+
+name: '🚀 Send Report to Slack'
+
+on:
+  issue_comment:
+    types:
+      - 'created'
+
+jobs:
+  send_report:
+    if: "contains(github.event.comment.body, '/send-report')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Parse command'
+        id: parse
+        run: |
+          set -euo pipefail
+          body="${{ github.event.comment.body }}"
+          channel=$(echo "$body" | sed -n "s/.*\/send-report \([^ ]*\).*/\1/p")
+          echo "channel=${channel}" >> $GITHUB_OUTPUT
+
+      - name: 'Call Packet Copilot workflow'
+        uses: ./.github/workflows/packet_copilot.yml
+        with:
+          slack_channel: ${{ steps.parse.outputs.channel }}
+          pcap_file: 'capture.pcap'

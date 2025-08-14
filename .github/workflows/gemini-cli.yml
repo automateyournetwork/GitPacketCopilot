@@ -46,6 +46,7 @@ jobs:
         contains(github.event.comment.body, '@gemini-cli') &&
         !contains(github.event.comment.body, '@gemini-cli /review') &&
         !contains(github.event.comment.body, '@gemini-cli /triage') &&
+        !contains(github.event.comment.body, '/send-report') &&
         contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
       ) ||
       (

@@ -6,6 +6,17 @@ on:
     paths:
       - '**/*.pcap'
       - '**/*.pcapng'
+  workflow_call:
+    inputs:
+      slack_channel:
+        required: false
+        type: string
+      pcap_file:
+        required: false
+        type: string
+    secrets:
+      SLACK_BOT_TOKEN:
+        required: false
 
 permissions:
   contents: write
@@ -30,7 +41,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "${BEFORE}" ] || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+          if [ -n "${{ inputs.pcap_file }}" ]; then
+            echo "${{ inputs.pcap_file }}" > /tmp/pcaps.txt
+          elif [ -z "${BEFORE}" ] || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
             git ls-files '*.pcap' '*.pcapng' > /tmp/pcaps.txt || true
           else
             git diff --name-only "${BEFORE}" "${AFTER}" -- '*.pcap' '*.pcapng' > /tmp/pcaps.txt || true
@@ -151,6 +164,7 @@ jobs:
             ${{ env.ANALYSIS_DATA }}
 
       - name: 'Commit & push report'
+        if: "${{ !inputs.slack_channel }}"
         run: |
           set -euo pipefail
           report_path='${{ steps.prep.outputs.report_path }}'
@@ -163,3 +177,22 @@ jobs:
           else
             echo "No report produced for ${{ matrix.pcap }}"
           fi
+
+  send-to-slack:
+    needs: analyze-pcaps
+    if: "${{ inputs.slack_channel }}"
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Read report'
+        id: read_report
+        run: |
+          report_content=$(cat ${{ needs.analyze-pcaps.outputs.report_path }})
+          echo "::set-output name=report::$report_content"
+
+      - name: Send to Slack
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          channel: ${{ inputs.slack_channel }}
+          text: "${{ steps.read_report.outputs.report }}"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
